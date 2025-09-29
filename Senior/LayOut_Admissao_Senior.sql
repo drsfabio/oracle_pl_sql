@@ -1,0 +1,111 @@
+SELECT DISTINCT 'I' AS TipOpe
+              , NAM.FULL_NAME AS "nomFun"
+              ,  SUBSTR(ASG.ASSIGNMENT_NUMBER, 1, 3) AS "numEmp"
+              ,  CASE
+                     WHEN ASG.ASSIGNMENT_TYPE = 'E' THEN '1'
+                     ELSE '2'
+                 END AS "tipCol"
+              ,  SUBSTR(ASG.ASSIGNMENT_NUMBER, 4, 50) AS "numCad"
+              ,  TO_CHAR(SEV.DATE_START, 'DD/MM/YYYY') AS "datAdm"
+              ,  JOB.JOB_CODE AS "codCar"
+              ,  POS.ATTRIBUTE4 AS "codEsc"
+              ,  RIF.ORG_INFORMATION1 AS "codFil"
+              ,  REGEXP_REPLACE(LOC.INTERNAL_ADDRESS_LINE, '\D') AS "numLoc"
+              ,  FLV.FLEX_VALUE AS "codCcu"
+              ,  POS.ATTRIBUTE13 AS "tipCon"
+              ,  PEL.SEX AS "tipSex"
+              ,  PEL.MARITAL_STATUS AS "estCiv"
+              ,  TO_CHAR(PSO.DATE_OF_BIRTH, 'DD/MM/YYYY') AS "datNas"
+              ,  REGEXP_REPLACE(CPF.NATIONAL_IDENTIFIER_NUMBER, '\W') AS "numCpf"
+              ,  REGEXP_REPLACE(PIS.NATIONAL_IDENTIFIER_NUMBER, '\D') AS "numPis"
+              ,  REGEXP_REPLACE(CPF.NATIONAL_IDENTIFIER_NUMBER, '\W') AS "numCra"
+              ,  SAL.SALARY_BASIS_CODE AS "tipSal"
+              ,  SAL.SALARY_AMOUNT AS "valSal"
+              ,  SID.INTERNAL_ADDRESS_LINE AS "codSin"
+              ,  ADH.EMAIL_ADDRESS AS "emaPar"
+              ,  ADW.EMAIL_ADDRESS AS "emaCom"
+              ,  POS.POSITION_CODE AS "posTra"
+              ,  POS.ATTRIBUTE_NUMBER4 AS "ApuPon"
+              ,  POS.ATTRIBUTE10 AS "ParPfa"
+              ,  POS.ATTRIBUTE11 AS "AjuPon"
+              ,  POS.ATTRIBUTE2 AS "CatEso"
+              ,  CASE PDF.CATEGORY
+                     WHEN 'ORA_HRX_MOTOR_D' THEN 'S'
+                     WHEN 'SA_HEA_IMP' THEN 'S'
+                     WHEN 'SA_VIS_IMP' THEN 'S'
+                     WHEN 'ORA_HRX_MENTAL_D' THEN 'S'
+                     WHEN 'SA_INT_DIS' THEN 'S'
+                     ELSE 'N'
+                 END AS "DefFis"
+              ,  CASE PDF.CATEGORY
+                     WHEN 'ORA_HRX_MOTOR_D' THEN 1
+                     WHEN 'SA_HEA_IMP' THEN 2
+                     WHEN 'SA_VIS_IMP' THEN 3
+                     WHEN 'ORA_HRX_MENTAL_D' THEN 4
+                     WHEN 'SA_INT_DIS' THEN 6
+                 END AS "CodDef"
+              ,  PDF.ATTRIBUTE1 AS "CotDef"
+              ,  '' AS "benRea"
+FROM PER_ALL_ASSIGNMENTS_M ASG -- Person Info --
+
+INNER JOIN PER_PERSONS PSO ON (PSO.PERSON_ID = ASG.PERSON_ID)
+INNER JOIN PER_ALL_PEOPLE_F PEO ON (PEO.PERSON_ID = ASG.PERSON_ID
+                                    AND ASG.EFFECTIVE_END_DATE BETWEEN PEO.EFFECTIVE_START_DATE AND PEO.EFFECTIVE_END_DATE)
+LEFT JOIN PER_PEOPLE_LEGISLATIVE_F PEL ON (PEL.PERSON_ID = ASG.PERSON_ID
+                                           AND ASG.EFFECTIVE_END_DATE BETWEEN PEL.EFFECTIVE_START_DATE AND PEL.EFFECTIVE_END_DATE)
+LEFT JOIN PER_PERSON_NAMES_F NAM ON (NAM.PERSON_ID = ASG.PERSON_ID
+                                     AND NAM.NAME_TYPE = 'BR'
+                                     AND ASG.EFFECTIVE_END_DATE BETWEEN NAM.EFFECTIVE_START_DATE AND NAM.EFFECTIVE_END_DATE)
+LEFT JOIN PER_EMAIL_ADDRESSES ADW ON (ADW.PERSON_ID = ASG.PERSON_ID
+                                      AND ADW.EMAIL_TYPE = 'W1')
+LEFT JOIN PER_EMAIL_ADDRESSES ADH ON (ADH.PERSON_ID = ASG.PERSON_ID
+                                      AND ADH.EMAIL_TYPE = 'H1' )-- Person Documents --
+
+LEFT JOIN PER_NATIONAL_IDENTIFIERS CPF ON (CPF.PERSON_ID = ASG.PERSON_ID
+                                           AND CPF.NATIONAL_IDENTIFIER_TYPE = 'CPF')
+LEFT JOIN PER_NATIONAL_IDENTIFIERS PIS ON (PIS.PERSON_ID = ASG.PERSON_ID
+                                           AND PIS.NATIONAL_IDENTIFIER_TYPE = 'PIS' )-- Position Info --
+
+LEFT JOIN HR_ALL_POSITIONS_F POS ON (POS.POSITION_ID = ASG.POSITION_ID
+                                     AND ASG.EFFECTIVE_END_DATE BETWEEN POS.EFFECTIVE_START_DATE AND POS.EFFECTIVE_END_DATE)
+LEFT JOIN PER_JOBS_F JOB ON (JOB.JOB_ID = POS.JOB_ID
+                             AND ASG.EFFECTIVE_END_DATE BETWEEN JOB.EFFECTIVE_START_DATE AND JOB.EFFECTIVE_END_DATE)
+LEFT JOIN HR_ORGANIZATION_V SID ON (SID.ORGANIZATION_ID = POS.UNION_ID
+                                    AND SID.STATUS = 'A'
+                                    AND SID.CLASSIFICATION_CODE = 'ORA_PER_UNION'
+                                    AND ASG.EFFECTIVE_END_DATE BETWEEN SID.EFFECTIVE_START_DATE AND SID.EFFECTIVE_END_DATE)
+LEFT JOIN HR_ORGANIZATION_V LOC ON (LOC.ORGANIZATION_ID = POS.ORGANIZATION_ID
+                                    AND LOC.CLASSIFICATION_CODE = 'DEPARTMENT'
+                                    AND ASG.EFFECTIVE_END_DATE BETWEEN LOC.EFFECTIVE_START_DATE AND LOC.EFFECTIVE_END_DATE)
+LEFT JOIN FND_FLEX_VALUES FLV ON (FLV.FLEX_VALUE_ID = POS.COST_CENTER )-- Person Work Relationship Informations --
+
+LEFT JOIN PER_PERIODS_OF_SERVICE SEV ON (SEV.PERIOD_OF_SERVICE_ID = ASG.PERIOD_OF_SERVICE_ID )-- Reporting Estabilishment --
+
+LEFT JOIN XLE_REGISTRATIONS_V RE ON (RE.REGISTRATION_NUMBER = ASG.ASS_ATTRIBUTE19
+                                     AND RE.LEGAL_ENTITY_ID IS NULL
+                                     AND ASG.EFFECTIVE_END_DATE BETWEEN NVL(RE.EFFECTIVE_FROM, TO_DATE('1951-01-01', 'YYYY-MM-DD')) AND NVL(RE.EFFECTIVE_TO, TO_DATE('4712-12-31', 'YYYY-MM-DD')))
+LEFT JOIN HR_ORGANIZATION_V EST ON (EST.ESTABLISHMENT_ID = RE.ESTABLISHMENT_ID
+                                    AND EST.STATUS = 'A'
+                                    AND EST.CLASSIFICATION_CODE = 'HCM_REPORTING_ESTABLISHMENT'
+                                    AND ASG.EFFECTIVE_END_DATE BETWEEN EST.EFFECTIVE_START_DATE AND EST.EFFECTIVE_END_DATE)
+LEFT JOIN HR_ORGANIZATION_INFORMATION_F RIF ON (RIF.ORG_INFORMATION_CONTEXT IN ('GM_EFF_ORG_FILIAL_DL', 'LACLS_BR_HCM_LRU_CODE')
+                                                AND RIF.ORGANIZATION_ID = EST.ORGANIZATION_ID
+                                                AND ASG.EFFECTIVE_END_DATE BETWEEN RIF.EFFECTIVE_START_DATE AND RIF.EFFECTIVE_END_DATE )-- Compensation
+
+LEFT JOIN CMP_SALARY SAL ON (SAL.ASSIGNMENT_ID = ASG.ASSIGNMENT_ID
+                             AND SAL.DATE_FROM =
+                               (SELECT MAX(SAL2.DATE_FROM)
+                                FROM CMP_SALARY SAL2
+                                WHERE SAL2.ASSIGNMENT_ID = ASG.ASSIGNMENT_ID))
+LEFT JOIN PER_DISABILITIES_F PDF ON ASG.PERSON_ID = PDF.PERSON_ID
+AND ASG.EFFECTIVE_END_DATE BETWEEN PDF.EFFECTIVE_START_DATE AND COALESCE(PDF.EFFECTIVE_END_DATE, SYSDATE)
+AND PDF.CATEGORY IN ('ORA_HRX_MOTOR_D'
+                   , 'SA_HEA_IMP'
+                   , 'SA_VIS_IMP'
+                   ,  'ORA_HRX_MENTAL_D'
+                   ,  'SA_INT_DIS')
+WHERE 1 = 1
+  --AND ASG.ACTION_CODE IN ('HIRE', 'REHIRE')
+  AND ASG.ASSIGNMENT_TYPE IN ('E')
+  AND REGEXP_LIKE(ASG.ASSIGNMENT_NUMBER, '^[0-9]+$')
+  AND ASG.ASSIGNMENT_NUMBER IN ('002182275')

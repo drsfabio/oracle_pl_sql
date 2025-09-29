@@ -1,0 +1,1 @@
+SELECT * FROM hrc_integration_key_map WHERE rownum < 100

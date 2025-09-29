@@ -1,0 +1,100 @@
+SELECT PAPF.PERSON_NUMBER "PersonNumber"
+     , PPNF_EMP.FULL_NAME "PersonName"
+     , PU_EMP.USER_START_DATE "UserAccountStartDate"
+     , PU_EMP.USER_END_DATE "UserAccountEndDate"
+     , PU_EMP.IS_USER_ACCOUNT_ACTIVE "UserAccountStatus"
+     , PU_EMP.USERNAME "UserAccountName"
+     , PU_EMP.IS_USER_ACCOUNT_SUSPENDED "IsUserAccountSuspended"
+     , PU_EMP.USER_DISTINGUISHED_NAME "UserAccountInternalName"
+     , PUR_EMP.METHOD_CODE "RoleProvisioningMethod"
+     , PUR_EMP.IS_USER_ROLE_ACTIVE "IsUserRoleActive"
+     , PUR_EMP.IS_USER_ROLE_TERMINATED "IsUserRoleTerminated"
+     , CASE
+           WHEN (PUR_EMP.IS_USER_ROLE_ACTIVE = 'Yes'
+                 AND PUR_EMP.IS_USER_ROLE_TERMINATED = 'No') THEN 'Active'
+           WHEN (PUR_EMP.IS_USER_ROLE_ACTIVE = 'No'
+                 AND PUR_EMP.IS_USER_ROLE_TERMINATED = 'No') THEN 'NeitherActiveNorTerminated'
+           WHEN (PUR_EMP.IS_USER_ROLE_ACTIVE = 'Yes'
+                 AND PUR_EMP.IS_USER_ROLE_TERMINATED = 'Yes') THEN 'ActiveAndTerminated'
+           WHEN (PUR_EMP.IS_USER_ROLE_ACTIVE = 'No'
+                 AND PUR_EMP.IS_USER_ROLE_TERMINATED = 'Yes') THEN 'InactiveAndNotTerminated'
+       END AS "UserRoleStatus"
+     , PUR_EMP.ROLE_START_DATE "UserRoleStartDate"
+     , PUR_EMP.ROLE_END_DATE "UserRoleEndDate"
+     , PRD_EMP.ABSTRACT_ROLE "IsRoleAAbstractRole"
+     , PRD_EMP.JOB_ROLE "IsRoleAJobRole"
+     , PRD_EMP.DATA_ROLE "IsRoleADataRole"
+     , PRD_EMP.IS_ROLE_ACTIVE "IsRoleActive"
+     , CASE
+           WHEN (PRD_EMP.ABSTRACT_ROLE = 'Y'
+                 AND PRD_EMP.JOB_ROLE = 'N'
+                 AND PRD_EMP.DATA_ROLE = 'N') THEN 'Abstract Role'
+           WHEN (PRD_EMP.ABSTRACT_ROLE = 'N'
+                 AND PRD_EMP.JOB_ROLE = 'Y'
+                 AND PRD_EMP.DATA_ROLE = 'N') THEN 'Job Role'
+           WHEN (PRD_EMP.ABSTRACT_ROLE = 'N'
+                 AND PRD_EMP.JOB_ROLE = 'N'
+                 AND PRD_EMP.DATA_ROLE = 'Y') THEN 'Data Role'
+           WHEN (PRD_EMP.ABSTRACT_ROLE IS NULL
+                 AND PRD_EMP.JOB_ROLE IS NULL
+                 AND PRD_EMP.DATA_ROLE IS NULL) THEN '--NA--'
+       END AS "UserRoleType"
+     , PRD_EMP.ROLE_COMMON_NAME "RoleCommonName"
+     , PRD_EMP.MULTITENANCY_COMMON_NAME "MultitenancyCommonName"
+     , PRD_EMP.ROLE_DISTINGUISHED_NAME "IsRoleDistinguishedName"
+     , PRDT_EMP.ROLE_NAME "UserRoleName"
+     , PRDT_EMP.ROLEDESCRIPTION "RoleDescription"
+FROM PER_ALL_PEOPLE_F PAPF
+JOIN
+  (SELECT PPNF.FULL_NAME
+        , PPNF.PERSON_ID
+   FROM PER_PERSON_NAMES_F PPNF
+   WHERE PPNF.NAME_TYPE = 'GLOBAL'
+     AND TRUNC(SYSDATE) BETWEEN PPNF.EFFECTIVE_START_DATE AND PPNF.EFFECTIVE_END_DATE) PPNF_EMP ON (PPNF_EMP.PERSON_ID = PAPF.PERSON_ID
+                                                                                                    AND TRUNC(SYSDATE) BETWEEN PAPF.EFFECTIVE_START_DATE AND PAPF.EFFECTIVE_END_DATE)
+LEFT OUTER JOIN
+  (SELECT PU.PERSON_ID
+        , PU.USER_ID
+        , PU.USERNAME
+        , TO_CHAR(PU.START_DATE, 'DD-MM-RRRR') USER_START_DATE
+        , TO_CHAR(PU.END_DATE, 'DD-MM-RRRR') USER_END_DATE
+        , DECODE(PU.ACTIVE_FLAG, 'N', 'Inactive', 'Y', 'Active') IS_USER_ACCOUNT_ACTIVE
+        , DECODE(PU.SUSPENDED, 'N', 'No', 'Y', 'Yes') IS_USER_ACCOUNT_SUSPENDED
+        , PU.USER_DISTINGUISHED_NAME
+   FROM PER_USERS PU) PU_EMP ON(PU_EMP.PERSON_ID = PAPF.PERSON_ID
+                                AND TRUNC(SYSDATE) BETWEEN PAPF.EFFECTIVE_START_DATE AND PAPF.EFFECTIVE_END_DATE)
+LEFT OUTER JOIN
+  (SELECT PUR.USER_ID
+        , PUR.ROLE_ID
+        , PUR.ROLE_GUID
+        , DECODE(PUR.METHOD_CODE, 'A', 'Automatic', 'M', 'Manually', 'E', 'Externally Provisioned') METHOD_CODE
+        , DECODE(PUR.ACTIVE_FLAG, 'N', 'No', 'Y', 'Yes') IS_USER_ROLE_ACTIVE
+        , DECODE(PUR.TERMINATED_FLAG, 'N', 'No', 'Y', 'Yes') IS_USER_ROLE_TERMINATED
+        , TO_CHAR(PUR.START_DATE, 'DD-MM-RRRR') ROLE_START_DATE
+        , TO_CHAR(PUR.END_DATE, 'DD-MM-RRRR') ROLE_END_DATE
+   FROM PER_USER_ROLES PUR) PUR_EMP ON (PU_EMP.USER_ID = PUR_EMP.USER_ID)
+JOIN
+  (SELECT PRD.ROLE_ID
+        , PRD.ROLE_GUID
+        , PRD.ABSTRACT_ROLE
+        , PRD.JOB_ROLE
+        , PRD.DATA_ROLE
+        , DECODE(PRD.ACTIVE_FLAG, 'N', 'No', 'Y', 'Yes') IS_ROLE_ACTIVE
+        , PRD.ROLE_COMMON_NAME
+        , PRD.MULTITENANCY_COMMON_NAME
+        , PRD.ROLE_DISTINGUISHED_NAME
+   FROM PER_ROLES_DN PRD) PRD_EMP ON (PUR_EMP.ROLE_ID = PRD_EMP.ROLE_ID
+                                      AND PUR_EMP.ROLE_GUID = PRD_EMP.ROLE_GUID)
+JOIN
+  (SELECT PRDT.ROLE_ID
+        , PRDT.ROLE_NAME
+        , PRDT.DESCRIPTION ROLEDESCRIPTION
+        , PRDT.SOURCE_LANG
+   FROM PER_ROLES_DN_TL PRDT) PRDT_EMP ON (PRD_EMP.ROLE_ID = PRDT_EMP.ROLE_ID
+                                           AND PUR_EMP.ROLE_ID = PRDT_EMP.ROLE_ID
+                                           AND PRDT_EMP.SOURCE_LANG = 'US')
+WHERE TRUNC (SYSDATE) BETWEEN PAPF.EFFECTIVE_START_DATE AND PAPF.EFFECTIVE_END_DATE
+  AND PU_EMP.IS_USER_ACCOUNT_SUSPENDED = 'No'
+  AND PPNF_EMP.FULL_NAME LIKE '%' || NVL(:PU_FULL_NAME, PPNF_EMP.FULL_NAME) || '%'
+  AND PU_EMP.USERNAME LIKE '%' || NVL(:PU_USERNAME, PU_EMP.USERNAME) || '%'
+  AND PAPF.PERSON_NUMBER LIKE '%' || NVL(:PU_PERSON_NUMBER, PAPF.PERSON_NUMBER) || '%'

@@ -1,0 +1,188 @@
+--
+-- Vinicius L Cabral (Peloton) >  Grupo Matheus > Senior
+-- Update Date: 2024-06-29
+-- Admissão
+-- Doc Reference:
+--
+ WITH ASSIGN_PARAM AS
+  (SELECT CASE
+              WHEN :P_AsgNumber IS NULL THEN SYSDATE
+              ELSE NVL(TO_DATE(TO_CHAR(:P_UpdateDate, 'YYYY-MM-DD'), 'YYYY-MM-DD'), SYSDATE)
+          END AS EXTRACTION_DATE
+   FROM DUAL)
+SELECT *
+FROM
+  (SELECT JOB.JOB_CODE AS "codCar"
+        ,  FLV.FLEX_VALUE AS "codCcu"
+        ,  POS.ATTRIBUTE4 AS "codEsc"
+        ,  RIF.ORG_INFORMATION2 AS "codFil"
+        ,  SID.INTERNAL_ADDRESS_LINE AS "codSin"
+        ,  TO_CHAR(SEV.DATE_START, 'DD/MM/YYYY') AS "datAdm"
+        ,  TO_CHAR(PSO.DATE_OF_BIRTH, 'DD/MM/YYYY') AS "datNas"
+        ,  ADW.EMAIL_ADDRESS AS "emaCom"
+        ,  ADH.EMAIL_ADDRESS AS "emaPar"
+        ,  PEL.MARITAL_STATUS AS "estCiv"
+        ,  (ASG.ASSIGNMENT_NUMBER || TO_CHAR(SEV.DATE_START, 'DDMMYYYY') || TO_CHAR(ASG.LAST_UPDATE_DATE, 'DDMMYYYY') || TO_CHAR(SYSDATE, 'DDMMYYYY')) AS "flowInstanceID"
+        ,  'Hire' AS "flowName"
+        ,  NAM.FULL_NAME AS "nomFun"
+        ,  SUBSTR(ASG.ASSIGNMENT_NUMBER, 4, 50) AS "numCad"
+        ,  REGEXP_REPLACE(CPF.NATIONAL_IDENTIFIER_NUMBER, '\W') AS "numCpf"
+        ,  '' AS "numCra", -- Not Mapped
+  SUBSTR(ASG.ASSIGNMENT_NUMBER, 1, 3) AS "numEmp"
+,  REGEXP_REPLACE(LOC.INTERNAL_ADDRESS_LINE, '\D') AS "numLoc", -- Search
+  REGEXP_REPLACE(PIS.NATIONAL_IDENTIFIER_NUMBER, '\D') AS "numPis"
+,  POS.POSITION_CODE AS "posTra"
+,  CASE
+       WHEN ASG.ASSIGNMENT_TYPE = 'E' THEN '1'
+       ELSE '2'
+   END AS "tipCol"
+,  POS.ATTRIBUTE13 AS "tipCon", -- Search
+  'I' AS "tipOpe"
+,  SAL.SALARY_BASIS_CODE AS "tipSal", -- Search
+  PEL.SEX AS "tipSex"
+,  SAL.SALARY_AMOUNT AS "valSal"
+,  POS.ATTRIBUTE_NUMBER4 AS "ApuPon"
+,  POS.ATTRIBUTE10 AS "ParPfa"
+,  POS.ATTRIBUTE11 AS "AjuPon"
+,  ASG.ASSIGNMENT_ID AS "AssignmentId"
+,  ASG.PERSON_ID AS "PersonId"
+,  ASG.EFFECTIVE_START_DATE AS "EffectiveStartDate"
+,  PEO.PERSON_NUMBER AS "PersonNumber"
+,  ASG.ASSIGNMENT_NUMBER AS "AssignmentNumber"
+,  POS.ORGANIZATION_ID AS "DepartmentId"
+,  ASG.LAST_UPDATE_DATE AS "UpdateDate"
+   FROM PER_ALL_ASSIGNMENTS_M ASG -- Param used as Context do Effective Dates --
+
+   INNER JOIN ASSIGN_PARAM ASP ON (1 = 1)-- Person Info --
+
+   INNER JOIN PER_PERSONS PSO ON (PSO.PERSON_ID = ASG.PERSON_ID)
+   INNER JOIN PER_ALL_PEOPLE_F PEO ON (PEO.PERSON_ID = ASG.PERSON_ID
+                                       AND ASG.EFFECTIVE_END_DATE BETWEEN PEO.EFFECTIVE_START_DATE AND PEO.EFFECTIVE_END_DATE)
+   LEFT JOIN PER_PEOPLE_LEGISLATIVE_F PEL ON (PEL.PERSON_ID = ASG.PERSON_ID
+                                              AND ASG.EFFECTIVE_END_DATE BETWEEN PEL.EFFECTIVE_START_DATE AND PEL.EFFECTIVE_END_DATE)
+   LEFT JOIN PER_PERSON_NAMES_F NAM ON (NAM.PERSON_ID = ASG.PERSON_ID
+                                        AND NAM.NAME_TYPE = 'BR'
+                                        AND ASG.EFFECTIVE_END_DATE BETWEEN NAM.EFFECTIVE_START_DATE AND NAM.EFFECTIVE_END_DATE)
+   LEFT JOIN PER_EMAIL_ADDRESSES ADW ON (ADW.PERSON_ID = ASG.PERSON_ID
+                                         AND ADW.EMAIL_TYPE = 'W1')
+   LEFT JOIN PER_EMAIL_ADDRESSES ADH ON (ADH.PERSON_ID = ASG.PERSON_ID
+                                         AND ADH.EMAIL_TYPE = 'H1')-- Person Documents --
+
+   LEFT JOIN PER_NATIONAL_IDENTIFIERS CPF ON (CPF.PERSON_ID = ASG.PERSON_ID
+                                              AND CPF.NATIONAL_IDENTIFIER_TYPE = 'CPF')
+   LEFT JOIN PER_NATIONAL_IDENTIFIERS PIS ON (PIS.PERSON_ID = ASG.PERSON_ID
+                                              AND PIS.NATIONAL_IDENTIFIER_TYPE = 'PIS')-- Position Info --
+
+   LEFT JOIN HR_ALL_POSITIONS_F POS ON (POS.POSITION_ID = ASG.POSITION_ID
+                                        AND ASG.EFFECTIVE_END_DATE BETWEEN POS.EFFECTIVE_START_DATE AND POS.EFFECTIVE_END_DATE)
+   LEFT JOIN PER_JOBS_F JOB ON (JOB.JOB_ID = POS.JOB_ID
+                                AND ASG.EFFECTIVE_END_DATE BETWEEN JOB.EFFECTIVE_START_DATE AND JOB.EFFECTIVE_END_DATE)
+   LEFT JOIN HR_ORGANIZATION_V SID ON (SID.ORGANIZATION_ID = POS.UNION_ID
+                                       AND SID.STATUS = 'A'
+                                       AND SID.CLASSIFICATION_CODE = 'ORA_PER_UNION'
+                                       AND ASG.EFFECTIVE_END_DATE BETWEEN SID.EFFECTIVE_START_DATE AND SID.EFFECTIVE_END_DATE)
+   LEFT JOIN HR_ORGANIZATION_V LOC ON (LOC.ORGANIZATION_ID = POS.ORGANIZATION_ID
+                                       AND LOC.CLASSIFICATION_CODE = 'DEPARTMENT'
+                                       AND ASG.EFFECTIVE_END_DATE BETWEEN LOC.EFFECTIVE_START_DATE AND LOC.EFFECTIVE_END_DATE)
+   LEFT JOIN FND_FLEX_VALUES FLV ON (FLV.FLEX_VALUE_ID = POS.COST_CENTER)-- Person Work Relationship Informations --
+
+   LEFT JOIN PER_PERIODS_OF_SERVICE SEV ON (SEV.PERIOD_OF_SERVICE_ID = ASG.PERIOD_OF_SERVICE_ID)-- Reporting Estabilishment --
+
+   LEFT JOIN XLE_REGISTRATIONS_V RE ON (RE.REGISTRATION_NUMBER = ASG.ASS_ATTRIBUTE19
+                                        AND RE.LEGAL_ENTITY_ID IS NULL
+                                        AND ASG.EFFECTIVE_END_DATE BETWEEN NVL(RE.EFFECTIVE_FROM, TO_DATE('1951-01-01', 'YYYY-MM-DD')) AND NVL(RE.EFFECTIVE_TO, TO_DATE('4712-12-31', 'YYYY-MM-DD')))
+   LEFT JOIN HR_ORGANIZATION_V EST ON (EST.ESTABLISHMENT_ID = RE.ESTABLISHMENT_ID
+                                       AND EST.STATUS = 'A'
+                                       AND EST.CLASSIFICATION_CODE = 'HCM_REPORTING_ESTABLISHMENT'
+                                       AND ASG.EFFECTIVE_END_DATE BETWEEN EST.EFFECTIVE_START_DATE AND EST.EFFECTIVE_END_DATE)
+   LEFT JOIN HR_ORGANIZATION_INFORMATION_F RIF ON (RIF.ORG_INFORMATION_CONTEXT = 'GM_EFF_ORG_FILIAL_DL'
+                                                   AND RIF.ORGANIZATION_ID = EST.ORGANIZATION_ID
+                                                   AND ASG.EFFECTIVE_END_DATE BETWEEN RIF.EFFECTIVE_START_DATE AND RIF.EFFECTIVE_END_DATE)-- Compensation
+
+   LEFT JOIN CMP_SALARY SAL ON (SAL.ASSIGNMENT_ID = ASG.ASSIGNMENT_ID
+                                AND SAL.DATE_FROM =
+                                  (SELECT MAX(SAL2.DATE_FROM)
+                                   FROM CMP_SALARY SAL2
+                                   WHERE SAL2.ASSIGNMENT_ID = ASG.ASSIGNMENT_ID))
+   WHERE 1 = 1
+     AND ASG.ACTION_CODE IN ('HIRE')
+     AND ASG.ASSIGNMENT_TYPE IN ('E')
+     AND REGEXP_LIKE(ASG.ASSIGNMENT_NUMBER, '^[0-9]+$')
+     AND (-- Future or Current Update
+ (:P_AsgNumber IS NULL
+  AND TO_CHAR(ASG.EFFECTIVE_END_DATE, 'YYYY-MM-DD') = '4712-12-31'
+  AND ASG.LAST_UPDATE_DATE > :P_UpdateDate)-- Polling Date To Query Just Last Updated Records
+
+          OR -- Reprocess
+ (ASG.ASSIGNMENT_NUMBER = :P_AsgNumber
+  AND ASP.EXTRACTION_DATE BETWEEN ASG.EFFECTIVE_START_DATE AND ASG.EFFECTIVE_END_DATE))
+   UNION ALL SELECT NULL AS "codCar"
+                  ,  NULL AS "codCcu"
+                  ,  NULL AS "codEsc"
+                  ,  NULL AS "codFil"
+                  ,  NULL AS "codSin"
+                  ,  TO_CHAR(SEV.DATE_START, 'DD/MM/YYYY') AS "datAdm"
+                  ,  TO_CHAR(PSO.DATE_OF_BIRTH, 'DD/MM/YYYY') AS "datNas"
+                  ,  NULL AS "emaCom"
+                  ,  NULL AS "emaPar"
+                  ,  NULL AS "estCiv"
+                  ,  (ASG.ASSIGNMENT_NUMBER || TO_CHAR(SEV.DATE_START, 'DDMMYYYY') || TO_CHAR(ASG.LAST_UPDATE_DATE, 'DDMMYYYY') || TO_CHAR(SYSDATE, 'DDMMYYYY')) AS "flowInstanceID"
+                  ,  'Hire' AS "flowName"
+                  ,  NAM.FULL_NAME AS "nomFun"
+                  ,  SUBSTR(ASG.ASSIGNMENT_NUMBER, 4, 50) AS "numCad"
+                  ,  REGEXP_REPLACE(CPF.NATIONAL_IDENTIFIER_NUMBER, '\W') AS "numCpf"
+                  ,  NULL AS "numCra"
+                  ,  SUBSTR(ASG.ASSIGNMENT_NUMBER, 1, 3) AS "numEmp"
+                  ,  NULL AS "numLoc", -- Search
+  NULL AS "numPis"
+,  NULL AS "posTra", -- Search
+  CASE
+      WHEN ASG.ASSIGNMENT_TYPE = 'E' THEN '1'
+      ELSE '2'
+  END AS "tipCol"
+,  '1' AS "tipCon", -- Search
+  'E' AS "tipOpe"
+,  NULL AS "tipSal"
+,  NULL AS "tipSex"
+,  NULL AS "valSal"
+,  NULL AS "ApuPon"
+,  NULL AS "ParPfa"
+,  NULL AS "AjuPon"
+,  ASG.ASSIGNMENT_ID AS "AssignmentId"
+,  ASG.PERSON_ID AS "PersonId"
+,  ASG.EFFECTIVE_START_DATE AS "EffectiveStartDate"
+,  PEO.PERSON_NUMBER AS "PersonNumber"
+,  ASG.ASSIGNMENT_NUMBER AS "AssignmentNumber"
+,  NULL AS "DepartmentId"
+,  ASG.LAST_UPDATE_DATE AS "UpdateDate"
+   FROM PER_ALL_ASSIGNMENTS_M_ ASG -- Param used as Context do Effective Dates --
+
+   INNER JOIN ASSIGN_PARAM ASP ON (1 = 1)-- Person Info --
+
+   INNER JOIN PER_PERSONS PSO ON (PSO.PERSON_ID = ASG.PERSON_ID)
+   INNER JOIN PER_ALL_PEOPLE_F PEO ON (PEO.PERSON_ID = ASG.PERSON_ID
+                                       AND ASG.EFFECTIVE_END_DATE BETWEEN PEO.EFFECTIVE_START_DATE AND PEO.EFFECTIVE_END_DATE)
+   LEFT JOIN PER_PEOPLE_LEGISLATIVE_F PEL ON (PEL.PERSON_ID = ASG.PERSON_ID
+                                              AND ASG.EFFECTIVE_END_DATE BETWEEN PEL.EFFECTIVE_START_DATE AND PEL.EFFECTIVE_END_DATE)
+   LEFT JOIN PER_PERSON_NAMES_F NAM ON (NAM.PERSON_ID = ASG.PERSON_ID
+                                        AND NAM.NAME_TYPE = 'BR'
+                                        AND ASG.EFFECTIVE_END_DATE BETWEEN NAM.EFFECTIVE_START_DATE AND NAM.EFFECTIVE_END_DATE)-- Person Documents --
+
+   LEFT JOIN PER_NATIONAL_IDENTIFIERS CPF ON (CPF.PERSON_ID = ASG.PERSON_ID
+                                              AND CPF.NATIONAL_IDENTIFIER_TYPE = 'CPF')-- Person Work Relationship Informations --
+
+   LEFT JOIN PER_PERIODS_OF_SERVICE SEV ON (SEV.PERIOD_OF_SERVICE_ID = ASG.PERIOD_OF_SERVICE_ID)
+   WHERE 1 = 1
+     AND ASG.ACTION_CODE IN ('HIRE')
+     AND ASG.ASSIGNMENT_TYPE IN ('E')
+     AND REGEXP_LIKE(ASG.ASSIGNMENT_NUMBER, '^[0-9]+$')
+     AND ASG.AUDIT_ACTION_TYPE_ = 'DELETE'
+     AND (-- Future or Current Update
+ (:P_AsgNumber IS NULL
+  AND TO_CHAR(ASG.EFFECTIVE_END_DATE, 'YYYY-MM-DD') = '4712-12-31'
+  AND ASG.LAST_UPDATE_DATE > :P_UpdateDate)-- Polling Date To Query Just Last Updated Records
+
+          OR -- Reprocess
+ (ASG.ASSIGNMENT_NUMBER = :P_AsgNumber
+  AND ASP.EXTRACTION_DATE BETWEEN ASG.EFFECTIVE_START_DATE AND ASG.EFFECTIVE_END_DATE))) LOV
+OFFSET NVL(:P_Page * 2500, 0) ROWS FETCH NEXT 2500 ROWS ONLY
