@@ -203,7 +203,7 @@ Este projeto está licenciado sob a Licença MIT. Veja o arquivo [LICENSE](LICEN
 
 **Dr. Fábio**
 - GitHub: [@drsfabio](https://github.com/drsfabio)
-- LinkedIn: [Seu LinkedIn](https://linkedin.com/in/drsfabio)
+- LinkedIn: [@drsfabio](https://linkedin.com/in/drsfabio)
 
 ## 🙏 Agradecimentos
 
